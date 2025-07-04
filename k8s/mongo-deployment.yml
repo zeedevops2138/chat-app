@@ -3,6 +3,8 @@ kind: StatefulSet
 metadata:
   name: mongo-deployment
   namespace: chat-app
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   serviceName: mongo-service
   replicas: 1
