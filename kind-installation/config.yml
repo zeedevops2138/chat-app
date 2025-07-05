@@ -1,0 +1,29 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.31.2
+    extraMounts:
+      - hostPath: /home/ubuntu/chatt-app-data  # Replace 'your-username' with your actual username
+        containerPath: /mnt/data
+    extraPortMappings:
+      - containerPort: 80     # Ingress HTTP
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443    # Ingress HTTPS
+        hostPort: 443
+        protocol: TCP
+      - containerPort: 30080  # Backend NodePort
+        hostPort: 30080
+        protocol: TCP
+      - containerPort: 30000  # Frontend NodePort
+        hostPort: 30000
+        protocol: TCP
+      - containerPort: 32000  # ArgoCD NodePort
+        hostPort: 32000
+        protocol: TCP
+  - role: worker
+    image: kindest/node:v1.31.2
+  - role: worker
+    image: kindest/node:v1.31.2
+
