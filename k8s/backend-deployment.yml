@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: chat-app-backend
-          image: zeeshan6793/chatt-app-backend:latest
+          image: zeeshan6793/chat-app-backend:v0.1
           ports:
             - containerPort: 5001
           env:

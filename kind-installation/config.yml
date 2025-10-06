@@ -4,7 +4,7 @@ nodes:
   - role: control-plane
     image: kindest/node:v1.31.2
     extraMounts:
-      - hostPath: /home/ubuntu/chatt-app-data  # Replace 'your-username' with your actual username
+      - hostPath: /home/zeeshan/chatt-app-data  # Replace 'your-username' with your actual username
         containerPath: /mnt/data
     extraPortMappings:
       - containerPort: 80     # Ingress HTTP
