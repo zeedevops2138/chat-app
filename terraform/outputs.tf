@@ -33,3 +33,15 @@ output "eks_node_group_role_arn" {
   value = module.eks.eks_managed_node_groups["example"].iam_role_arn
 
 }
+
+output "node_security_group_id" {
+  description = "Security group ID for the EKS worker nodes"
+  value       = aws_security_group.nodes_sg.id
+  
+}
+
+output "cluster_security_group_id" {
+  description = "Security group ID for the EKS cluster"
+  value       = aws_security_group.eks_cluster_sg.id
+  
+}

@@ -41,12 +41,14 @@ module "eks" {
   eks_managed_node_groups = {
     example = {
       # Starting on 1.30, AL2023 is the default AMI type for EKS managed node groups
-      ami_type       = "AL2023_x86_64_STANDARD"
-      instance_types = ["t2.large"]
+      ami_type       = var.ami_type
+      instance_types = var.instance_types
 
       min_size     = 2
       max_size     = 4
       desired_size = 2
+
+      additional_security_group_ids = [aws_security_group.nodes_sg.id]
     }
   }
 

@@ -1,0 +1,183 @@
+# Default values for chatapp
+
+# Namespace
+namespace: chat-app
+
+# Frontend configuration
+frontend:
+  replicaCount: 1
+
+  image:
+    repository: "zeeshan6793/chat-app-frontend"
+    tag: "v0.1"
+    pullPolicy: IfNotPresent
+
+  containerPort: 80
+
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30000
+
+  env:
+    NODE_ENV: "production"
+    BACKEND_URL: "http://chatapp-backend.chat-app.svc.cluster.local:5001"
+
+  initContainers:
+  - name: wait-for-backend
+    image: busybox
+    command: ["sh", "-c"]
+    args: ["until nc -z chatapp-backend 5001; do echo waiting for backend; sleep 5; done;"]
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    failureThreshold: 3
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+  nginxConf: |
+    server {
+        listen 80;
+        server_name localhost;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api/ {
+            proxy_pass http://chatapp-backend.chat-app.svc.cluster.local:5001/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+
+        location /socket.io/ {
+            proxy_pass http://chatapp-backend.chat-app.svc.cluster.local:5001/socket.io/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "Upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+
+# Backend configuration
+backend:
+  replicaCount: 1
+
+  image:
+    repository: "zeeshan6793/chat-app-backend"
+    tag: "v0.3"
+    pullPolicy: IfNotPresent
+
+  containerPort: 5001
+
+  service:
+    type: NodePort
+    port: 5001
+    nodePort: 30080
+
+  env:
+    NODE_ENV: "production"
+    PORT: "5001"
+    MONGODB_URI: "mongodb://admin:mongo123@chatapp-mongo-service:27017/chatApp?authSource=admin"
+
+  initContainers:
+  - name: wait-for-mongo
+    image: busybox:1.36
+    command: ["sh", "-c", "until nc -z chatapp-mongo-service 27017; do echo waiting for mongo; sleep 5; done;"]
+
+
+  secrets:
+    name: "mongo-secrets"
+    key: "JWT_SECRET"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1024Mi"
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5001
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    failureThreshold: 3
+
+# MongoDB configuration
+mongo:
+  replicas: 1
+
+  image:
+    repository: mongo
+    tag: latest
+
+  port: 27017
+
+  secret:
+    name: mongo-secrets
+    rootUsername: "admin"
+    rootPassword: "mongo123"
+    jwtSecret: "296e2b342901bd519771ab32de330ed0e24c90ad"
+
+  storage:
+    pvName: "mongo-pv"
+    pvcName: "mongo-pvc"
+    size: "1Gi"
+    className: "local-storage"
+    hostPath: "/mnt/data"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  host: chatapp.com
+  path: /
+  pathType: Prefix
+  rewriteTarget: /
