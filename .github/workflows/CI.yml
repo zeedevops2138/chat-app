@@ -16,7 +16,6 @@ env:
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   IMAGE_TAG: ${{ github.sha }}
 
-
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -60,6 +59,10 @@ jobs:
             cp -r * ../artifacts/backend/
           fi
 
+      # 5️⃣a Set short SHA for Docker tags
+      - name: Set short SHA
+        run: echo "IMAGE_TAG_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
       # 6️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -75,45 +78,41 @@ jobs:
       # Check And Create Repository on ECR
       - name: Create ECR repository if it doesn't exist
         run: |
-            ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-            aws ecr describe-repositories --repository-names ${{ matrix.service }} || \
-            aws ecr create-repository --repository-name ${{ matrix.service }}
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          aws ecr describe-repositories --repository-names ${{ matrix.service }} || \
+          aws ecr create-repository --repository-name ${{ matrix.service }}
 
-      # Login to Docker
+      # Login to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-
       # 8️⃣ Build Docker Image
       - name: Build Docker image
         run: |
-          IMAGE_TAG_SHORT=${IMAGE_TAG::7}
-          docker build -t ${{ matrix.service }}:$IMAGE_TAG_SHORT ./${{ matrix.service }}
+          docker build -t ${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }} ./${{ matrix.service }}
 
       # 9️⃣ Tag Docker Image for ECR & Docker Hub
       - name: Tag Docker image
         run: |
-          IMAGE_TAG_SHORT=${IMAGE_TAG::7}
           ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-          docker tag ${{ matrix.service }}:$IMAGE_TAG_SHORT $ECR_REGISTRY/${{ matrix.service }}:$IMAGE_TAG_SHORT
-          docker tag ${{ matrix.service }}:$IMAGE_TAG_SHORT ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:$IMAGE_TAG_SHORT
+          docker tag ${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }} $ECR_REGISTRY/${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }}
+          docker tag ${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }} ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }}
 
       # 🔟 Push Docker Image
       - name: Push Docker image to ECR and Docker Hub
         run: |
-          IMAGE_TAG_SHORT=${IMAGE_TAG::7}
           ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-          docker push $ECR_REGISTRY/${{ matrix.service }}:$IMAGE_TAG_SHORT
-          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:$IMAGE_TAG_SHORT
+          docker push $ECR_REGISTRY/${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }}
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }}
 
       # 1️⃣1️⃣ Trivy Scan
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ matrix.service }}:${{ env.IMAGE_TAG::7 }}
+          image-ref: ${{ matrix.service }}:${{ env.IMAGE_TAG_SHORT }}
           format: 'table'
 
   # 1️⃣2️⃣ Update Helm Chart Values
@@ -126,14 +125,13 @@ jobs:
 
       - name: Update Helm values.yaml with new Docker tags
         run: |
-          IMAGE_TAG_SHORT=${IMAGE_TAG::7}
-          sed -i "s|frontend.image.tag:.*|frontend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
-          sed -i "s|backend.image.tag:.*|backend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
+          sed -i "s|frontend.image.tag:.*|frontend.image.tag: ${{ env.IMAGE_TAG_SHORT }}|" chatapp-helm-charts/values.yaml
+          sed -i "s|backend.image.tag:.*|backend.image.tag: ${{ env.IMAGE_TAG_SHORT }}|" chatapp-helm-charts/values.yaml
 
       - name: Commit Helm Chart Updates
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add chatapp-helm-charts/values.yaml
-          git commit -m "Update Docker image tags to $IMAGE_TAG_SHORT from CI/CD pipeline" || echo "No changes to commit"
+          git commit -m "Update Docker image tags to ${{ env.IMAGE_TAG_SHORT }} from CI/CD pipeline" || echo "No changes to commit"
           git push origin main
