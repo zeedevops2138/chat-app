@@ -70,6 +70,21 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Check And Create Repository on ECR
+      - name: Create ECR repository if it doesn't exist
+        run: |
+            ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+            aws ecr describe-repositories --repository-names ${{ matrix.service }} || \
+            aws ecr create-repository --repository-name ${{ matrix.service }}
+
+      # Login to Docker
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
       # 8️⃣ Build Docker Image
       - name: Build Docker image
         run: |
