@@ -51,6 +51,7 @@ jobs:
           cd ${{ matrix.service }}
           if [ "${{ matrix.service }}" == "frontend" ]; then
             npm run build
+            mkdir -p ../artifacts/frontend
             mv dist ../artifacts/frontend
           else
             mkdir -p ../artifacts/backend
