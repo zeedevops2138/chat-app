@@ -1,0 +1,121 @@
+name: Chat-App CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, backend]
+
+    steps:
+      # 1️⃣ Checkout Code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          cd ${{ matrix.service }}
+          npm ci
+
+      # 4️⃣ OWASP Dependency Check
+      - name: OWASP Dependency Check
+        run: |
+          cd ${{ matrix.service }}
+          npx depcheck || echo "Dependency check completed"
+
+      # 5️⃣ Build Artifacts
+      - name: Build Artifacts
+        run: |
+          cd ${{ matrix.service }}
+          if [ "${{ matrix.service }}" == "frontend" ]; then
+            npm run build
+            mv dist ../artifacts/frontend
+          else
+            mkdir -p ../artifacts/backend
+            cp -r * ../artifacts/backend/
+          fi
+
+      # 6️⃣ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::880420039188:role/Github-ECR-bootstrap
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 7️⃣ Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 8️⃣ Build Docker Image
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::7}
+          docker build -t ${{ matrix.service }}:$IMAGE_TAG ./${{ matrix.service }}
+
+      # 9️⃣ Tag Docker Image for ECR & Docker Hub
+      - name: Tag Docker image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::7}
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          docker tag ${{ matrix.service }}:$IMAGE_TAG $ECR_REGISTRY/${{ matrix.service }}:$IMAGE_TAG
+          docker tag ${{ matrix.service }}:$IMAGE_TAG ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:$IMAGE_TAG
+
+      # 🔟 Push Docker Image
+      - name: Push Docker image to ECR and Docker Hub
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::7}
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          docker push $ECR_REGISTRY/${{ matrix.service }}:$IMAGE_TAG
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:$IMAGE_TAG
+
+      # 1️⃣1️⃣ Trivy Scan
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:${GITHUB_SHA::7}
+          format: 'table'
+
+  # 1️⃣2️⃣ Update Helm Chart Values
+  update-helm:
+    needs: ci-cd
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update Helm values.yaml with new Docker tags
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::7}
+          sed -i "s|frontend.image.tag:.*|frontend.image.tag: $IMAGE_TAG|" chatapp-helm-charts/values.yaml
+          sed -i "s|backend.image.tag:.*|backend.image.tag: $IMAGE_TAG|" chatapp-helm-charts/values.yaml
+
+      - name: Commit Helm Chart Updates
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add chatapp-helm-charts/values.yaml
+          git commit -m "Update Docker image tags to $IMAGE_TAG from CI/CD pipeline" || echo "No changes to commit"
+          git push origin main
