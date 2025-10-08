@@ -1,0 +1,85 @@
+name: "Bootstrap: Build & Push to ECR + DockerHub"
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_repo:
+        description: "ECR/DockerHub repo name for frontend"
+        required: true
+        default: "chat-app-frontend"
+      backend_repo:
+        description: "ECR/DockerHub repo name for backend"
+        required: true
+        default: "chat-app-backend"
+      version_tag:
+        description: "Image version tag (e.g., v0.2, v1.0.0)"
+        required: true
+        default: "v0.1"
+
+jobs:
+  build_and_push_images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: 🛠️ Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::880420039188:role/GitHubActions-ECR-Role
+          aws-region: ${{ secrets.AWS_REGION }}  
+      
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🏗️ Ensure ECR repositories exist
+        run: |
+          aws ecr describe-repositories --repository-names ${{ github.event.inputs.frontend_repo }} || \
+          aws ecr create-repository --repository-name ${{ github.event.inputs.frontend_repo }} --region ${{ secrets.AWS_REGION }}
+          aws ecr describe-repositories --repository-names ${{ github.event.inputs.backend_repo }} || \
+          aws ecr create-repository --repository-name ${{ github.event.inputs.backend_repo }} --region ${{ secrets.AWS_REGION }}
+      
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🐳 Build and push Frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          FRONTEND_REPO: ${{ github.event.inputs.frontend_repo }}
+          VERSION_TAG: ${{ github.event.inputs.version_tag }}
+        run: |
+          echo "🚀 Building and pushing frontend image..."
+          docker build --platform linux/amd64 -t $ECR_REGISTRY/$FRONTEND_REPO:$VERSION_TAG ./frontend
+          docker tag $ECR_REGISTRY/$FRONTEND_REPO:$VERSION_TAG ${{ secrets.DOCKERHUB_USERNAME }}/$FRONTEND_REPO:$VERSION_TAG
+          
+          docker push $ECR_REGISTRY/$FRONTEND_REPO:$VERSION_TAG
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$FRONTEND_REPO:$VERSION_TAG
+      
+      - name: 🐳 Build and push Backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          BACKEND_REPO: ${{ github.event.inputs.backend_repo }}
+          VERSION_TAG: ${{ github.event.inputs.version_tag }}
+        run: |
+          echo "🚀 Building and pushing backend image..."
+          docker build --platform linux/amd64 -t $ECR_REGISTRY/$BACKEND_REPO:$VERSION_TAG ./backend
+          docker tag $ECR_REGISTRY/$BACKEND_REPO:$VERSION_TAG ${{ secrets.DOCKERHUB_USERNAME }}/$BACKEND_REPO:$VERSION_TAG
+          
+          docker push $ECR_REGISTRY/$BACKEND_REPO:$VERSION_TAG
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$BACKEND_REPO:$VERSION_TAG
+
+      - name: ✅ Workflow Completed
+        run: |
+          echo "::notice::✅ All images have been built and pushed successfully!"
+          echo "📦 Frontend Image: $ECR_REGISTRY/${{ github.event.inputs.frontend_repo }}:${{ github.event.inputs.version_tag }}"
+          echo "📦 Backend Image:  $ECR_REGISTRY/${{ github.event.inputs.backend_repo }}:${{ github.event.inputs.version_tag }}"
