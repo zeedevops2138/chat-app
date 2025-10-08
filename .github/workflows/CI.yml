@@ -1,4 +1,4 @@
-name: Chat-App CI Pipeline
+name: Chat-App CI Pipeline workflow
 
 on:
   push:
