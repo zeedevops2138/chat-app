@@ -100,7 +100,7 @@ jobs:
 
   # 1️⃣2️⃣ Update Helm Chart Values
   update-helm:
-    needs: ci-cd
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
