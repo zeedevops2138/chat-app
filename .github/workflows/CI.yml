@@ -132,11 +132,13 @@ jobs:
          sed -i "s|frontend.image.tag:.*|frontend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
          sed -i "s|backend.image.tag:.*|backend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
          
-      - name: Commit Helm Chart Updates
+      - name: Push Helm changes to GitHub
+        env:
+         GH_PAT: ${{ secrets.GH_PAT }}
         run: |
          git config user.name "github-actions"
          git config user.email "github-actions@github.com"
+         git remote set-url origin https://x-access-token:${GH_PAT}@github.com/zeedevops2138/chat-app.git
          git add chatapp-helm-charts/values.yaml
          git diff --cached --exit-code || git commit -m "Update Docker image tags to $IMAGE_TAG_SHORT from CI/CD pipeline"
-         git remote set-url origin https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/zeedevops2138/chat-app.git
          git push origin main
