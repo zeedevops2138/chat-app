@@ -15,10 +15,10 @@ frontend:
   containerPort: 80
 
   service:
-    type: NodePort
+    type: ClusterIP
     port: 80
     nodePort: 30000
-
+#   protocol: TCP
   env:
     NODE_ENV: "production"
     BACKEND_URL: "http://chatapp-backend.chat-app.svc.cluster.local:5001"

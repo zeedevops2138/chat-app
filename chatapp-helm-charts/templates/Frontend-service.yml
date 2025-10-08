@@ -11,5 +11,6 @@ spec:
   ports:
     - port: {{ .Values.frontend.service.port }}
       targetPort: {{ .Values.frontend.containerPort }}
+#     protocol: {{ .Values.frontend.service.protocol | default "TCP" }}
       nodePort: {{ .Values.frontend.service.nodePort }}
   type: {{ .Values.frontend.service.type }}
