@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chatapp.fullname" . }}-frontend
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      initContainers:
+{{- range .Values.frontend.initContainers }}
+        - name: {{ .name }}
+          image: {{ .image }}
+          command: {{ toYaml .command | nindent 10 }}
+          args: {{ toYaml .args | nindent 10 }}
+{{- end }}
+
+      containers:
+        - name: chat-app-frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.containerPort }}
+          env:
+            - name: NODE_ENV
+              value: {{ .Values.frontend.env.NODE_ENV | quote }}
+            - name: BACKEND_URL
+              value: {{ .Values.frontend.env.BACKEND_URL | quote }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.frontend.readinessProbe.httpGet.path }}
+              port: {{ .Values.frontend.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.frontend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.frontend.readinessProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.frontend.livenessProbe.httpGet.path }}
+              port: {{ .Values.frontend.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.frontend.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.frontend.livenessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "chatapp.fullname" . }}-nginx-config

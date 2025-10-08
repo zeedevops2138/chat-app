@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chatapp.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+     {{- if .Values.backend.initContainers }}
+      initContainers:
+      {{- range .Values.backend.initContainers }}
+        - name: {{ .name }}
+          image: {{ .image }}
+          command: {{ toYaml .command | nindent 10 }}
+        {{- end }}
+      {{- end }}
+
+      containers:
+        - name: chat-app-backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.containerPort }}
+          env:
+            - name: NODE_ENV
+              value: {{ .Values.backend.env.NODE_ENV | quote }}
+            - name: PORT
+              value: {{ .Values.backend.env.PORT | quote }}
+            - name: MONGODB_URI
+              value: {{ .Values.backend.env.MONGODB_URI | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secrets.name }}
+                  key: {{ .Values.backend.secrets.key }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.readinessProbe.httpGet.path }}
+              port: {{ .Values.backend.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.backend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.backend.readinessProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.livenessProbe.httpGet.path }}
+              port: {{ .Values.backend.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.backend.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.backend.livenessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
