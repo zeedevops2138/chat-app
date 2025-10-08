@@ -134,4 +134,4 @@ jobs:
           git config user.email "github-actions@github.com"
           git add chatapp-helm-charts/values.yaml
           git commit -m "Update Docker image tags to ${{ env.IMAGE_TAG_SHORT }} from CI/CD pipeline" || echo "No changes to commit"
-          git push origin main
+          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/zeedevops2138/chat-app.git HEAD:main
