@@ -8,7 +8,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -28,6 +28,8 @@ jobs:
       # 1️⃣ Checkout Code
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       # 2️⃣ Setup Node.js
       - name: Setup Node.js
@@ -120,6 +122,8 @@ jobs:
   update-helm:
     needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -139,7 +143,6 @@ jobs:
         run: |
          git config user.name "github-actions"
          git config user.email "github-actions@github.com"
-         git remote set-url origin https://x-access-token:${GH_PAT}@github.com/zeedevops2138/chat-app.git
          git add chatapp-helm-charts/values.yaml
          git diff --cached --exit-code || git commit -m "Update Docker image tags to $IMAGE_TAG_SHORT from CI/CD pipeline"
          git push origin main
