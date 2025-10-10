@@ -132,11 +132,13 @@ jobs:
         env:
          IMAGE_TAG_SHORT: ${{ github.sha }}  # we’ll slice in bash
         run: |
-         IMAGE_TAG_SHORT=${IMAGE_TAG_SHORT::7}
+         IMAGE_TAG_SHORT=${GITHUB_SHA::7}
          echo "Using IMAGE_TAG_SHORT=$IMAGE_TAG_SHORT"
+    
          sed -i "s|frontend.image.tag:.*|frontend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
          sed -i "s|backend.image.tag:.*|backend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
-         
+ 
+       
       - name: Push Helm changes to GitHub
         env:
          GH_PAT: ${{ secrets.GH_PAT }}
