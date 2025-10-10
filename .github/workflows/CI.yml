@@ -15,6 +15,7 @@ env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   IMAGE_TAG: ${{ github.sha }}
+  GH_PAT: ${{ secrets.GH_PAT }}
 
 jobs:
   ci:
