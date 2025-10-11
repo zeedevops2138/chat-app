@@ -134,10 +134,8 @@ jobs:
         run: |
          IMAGE_TAG_SHORT=${GITHUB_SHA::7}
          echo "Using IMAGE_TAG_SHORT=$IMAGE_TAG_SHORT"
-    
-         sed -i "s|frontend.image.tag:.*|frontend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
-         sed -i "s|backend.image.tag:.*|backend.image.tag: $IMAGE_TAG_SHORT|" chatapp-helm-charts/values.yaml
- 
+         sed -i "/frontend:/,/repository:/!b;/repository:/,/tag:/s|tag:.*|tag: \"$IMAGE_TAG_SHORT\"|" chatapp-helm-charts/values.yaml
+         sed -i "/backend:/,/repository:/!b;/repository:/,/tag:/s|tag:.*|tag: \"$IMAGE_TAG_SHORT\"|" chatapp-helm-charts/values.yaml
        
       - name: Push Helm changes to GitHub
         env:
